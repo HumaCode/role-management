@@ -4,8 +4,8 @@ import type { NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check if accessing dashboard
-  if (pathname.startsWith("/dashboard")) {
+  // Check if accessing dashboard or users
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/users")) {
     // Get session from cookie
     const sessionToken = request.cookies.get("better-auth.session_token");
 
@@ -28,5 +28,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/register"],
+  matcher: ["/dashboard/:path*", "/users/:path*", "/login", "/register"],
 };
