@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,11 +50,14 @@ import {
   Phone,
   User,
   Lock,
+  ShieldAlert,
 } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
 
 interface User {
   id: string;
   name: string;
+  username: string;
   email: string;
   phone: string | null;
   role: string;
@@ -62,6 +66,8 @@ interface User {
 }
 
 export default function UsersPage() {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -71,6 +77,7 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
     name: "",
+    username: "",
     email: "",
     password: "",
     phone: "",
@@ -79,8 +86,16 @@ export default function UsersPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchUsers();
-  }, [search]);
+    // Check if user is admin
+    if (!isPending && session?.user?.role !== "admin") {
+      router.push("/dashboard");
+      return;
+    }
+    
+    if (!isPending && session) {
+      fetchUsers();
+    }
+  }, [search, session, isPending, router]);
 
   const fetchUsers = async () => {
     try {
@@ -98,7 +113,7 @@ export default function UsersPage() {
   };
 
   const handleCreate = async () => {
-    if (!formData.name || !formData.email || !formData.password) {
+    if (!formData.name || !formData.username || !formData.email || !formData.password) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -184,6 +199,7 @@ export default function UsersPage() {
     setSelectedUser(user);
     setFormData({
       name: user.name,
+      username: user.username,
       email: user.email,
       password: "",
       phone: user.phone || "",
@@ -200,6 +216,7 @@ export default function UsersPage() {
   const resetForm = () => {
     setFormData({
       name: "",
+      username: "",
       email: "",
       password: "",
       phone: "",
@@ -253,6 +270,7 @@ export default function UsersPage() {
           <TableHeader>
             <TableRow className="border-slate-700/50 hover:bg-slate-800/50">
               <TableHead className="text-slate-300">User</TableHead>
+              <TableHead className="text-slate-300">Username</TableHead>
               <TableHead className="text-slate-300">Email</TableHead>
               <TableHead className="text-slate-300">Phone</TableHead>
               <TableHead className="text-slate-300">Role</TableHead>
@@ -264,7 +282,7 @@ export default function UsersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                   </div>
@@ -273,7 +291,7 @@ export default function UsersPage() {
             ) : users.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="text-center py-8 text-slate-400"
                 >
                   No users found
@@ -297,6 +315,9 @@ export default function UsersPage() {
                         {user.name}
                       </span>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-slate-300">
+                    @{user.username}
                   </TableCell>
                   <TableCell className="text-slate-300">{user.email}</TableCell>
                   <TableCell className="text-slate-300">
@@ -359,6 +380,23 @@ export default function UsersPage() {
                   value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
+                  }
+                  className="pl-10 bg-slate-950 border-slate-700"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="username">
+                Username <span className="text-red-400">*</span>
+              </Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  id="username"
+                  placeholder="johndoe"
+                  value={formData.username}
+                  onChange={(e) =>
+                    setFormData({ ...formData, username: e.target.value })
                   }
                   className="pl-10 bg-slate-950 border-slate-700"
                 />
@@ -475,6 +513,20 @@ export default function UsersPage() {
                   value={formData.name}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
+                  }
+                  className="pl-10 bg-slate-950 border-slate-700"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-username">Username</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  id="edit-username"
+                  value={formData.username}
+                  onChange={(e) =>
+                    setFormData({ ...formData, username: e.target.value })
                   }
                   className="pl-10 bg-slate-950 border-slate-700"
                 />

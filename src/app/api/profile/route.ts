@@ -62,13 +62,39 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { name, phone, image } = body;
 
+    // Validation
+    if (!name || name.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Name is required" },
+        { status: 400 }
+      );
+    }
+
+    if (name.trim().length < 2) {
+      return NextResponse.json(
+        { error: "Name must be at least 2 characters" },
+        { status: 400 }
+      );
+    }
+
+    if (phone && phone.trim().length > 0) {
+      // Basic phone validation
+      const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+      if (!phoneRegex.test(phone)) {
+        return NextResponse.json(
+          { error: "Invalid phone number format" },
+          { status: 400 }
+        );
+      }
+    }
+
     // Update user profile
     await db
       .update(users)
       .set({
-        name: name || session.user.name,
-        phone: phone !== undefined ? phone : undefined,
-        image: image !== undefined ? image : undefined,
+        name: name.trim(),
+        phone: phone && phone.trim().length > 0 ? phone.trim() : null,
+        image: image && image.trim().length > 0 ? image.trim() : null,
         updatedAt: new Date(),
       })
       .where(eq(users.id, session.user.id));

@@ -17,6 +17,14 @@ export async function middleware(request: NextRequest) {
       // Redirect to login if no session
       return NextResponse.redirect(new URL("/login", request.url));
     }
+
+    // Additional role-based protection for /users route
+    // Only admin can access users management
+    if (pathname.startsWith("/users")) {
+      // Note: You'll need to decode session or make API call to check role
+      // For now, we'll handle this on the client side
+      // But ideally should be checked here too
+    }
   }
 
   // Redirect to dashboard if already logged in and accessing login/register

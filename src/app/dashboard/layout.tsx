@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ import {
   ChevronDown,
   User,
 } from "lucide-react";
+import { SIDEBAR_MENU_LIST, type SidebarMenuKey } from "@/config/menu";
 
 export default function DashboardLayout({
   children,
@@ -46,6 +47,13 @@ export default function DashboardLayout({
   const { data: session, isPending } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  // Get menu items based on user role
+  const menuItems = useMemo(() => {
+    if (!session?.user?.role) return [];
+    const role = session.user.role as SidebarMenuKey;
+    return SIDEBAR_MENU_LIST[role] || SIDEBAR_MENU_LIST.user;
+  }, [session?.user?.role]);
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -72,13 +80,6 @@ export default function DashboardLayout({
   if (!session) {
     return null;
   }
-
-  const menuItems = [
-    { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { href: "/users", icon: Users, label: "Users" },
-    { href: "/profile", icon: User, label: "Profile" },
-    { href: "/dashboard/settings", icon: Settings, label: "Settings" },
-  ];
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {
@@ -117,9 +118,10 @@ export default function DashboardLayout({
           {/* Navigation */}
           <nav className="flex-1 space-y-1 px-3 py-4">
             {menuItems.map((item) => {
-              const active = isActive(item.href);
+              const active = isActive(item.url);
+              const Icon = item.icon;
               return (
-                <Link key={item.href} href={item.href}>
+                <Link key={item.url} href={item.url}>
                   <button
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
                       active
@@ -127,8 +129,8 @@ export default function DashboardLayout({
                         : "text-slate-400 hover:text-white hover:bg-slate-800/50"
                     }`}
                   >
-                    <item.icon className="h-4 w-4" />
-                    <span className="font-medium">{item.label}</span>
+                    <Icon className="h-4 w-4" />
+                    <span className="font-medium">{item.title}</span>
                     {active && (
                       <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
                     )}
@@ -190,9 +192,10 @@ export default function DashboardLayout({
 
               <nav className="flex-1 space-y-1 px-3 py-4">
                 {menuItems.map((item) => {
-                  const active = isActive(item.href);
+                  const active = isActive(item.url);
+                  const Icon = item.icon;
                   return (
-                    <Link key={item.href} href={item.href}>
+                    <Link key={item.url} href={item.url}>
                       <button
                         onClick={() => setSidebarOpen(false)}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
@@ -201,8 +204,8 @@ export default function DashboardLayout({
                             : "text-slate-400 hover:text-white hover:bg-slate-800/50"
                         }`}
                       >
-                        <item.icon className="h-4 w-4" />
-                        <span className="font-medium">{item.label}</span>
+                        <Icon className="h-4 w-4" />
+                        <span className="font-medium">{item.title}</span>
                         {active && (
                           <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
                         )}
