@@ -4,8 +4,12 @@ import type { NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check if accessing dashboard or users
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/users")) {
+  // Check if accessing protected routes
+  if (
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/users") ||
+    pathname.startsWith("/profile")
+  ) {
     // Get session from cookie
     const sessionToken = request.cookies.get("better-auth.session_token");
 
@@ -18,7 +22,7 @@ export async function middleware(request: NextRequest) {
   // Redirect to dashboard if already logged in and accessing login/register
   if (pathname === "/login" || pathname === "/register") {
     const sessionToken = request.cookies.get("better-auth.session_token");
-    
+
     if (sessionToken) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
@@ -28,5 +32,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/users/:path*", "/login", "/register"],
+  matcher: [
+    "/dashboard/:path*",
+    "/users/:path*",
+    "/profile/:path*",
+    "/login",
+    "/register",
+  ],
 };

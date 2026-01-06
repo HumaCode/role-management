@@ -76,6 +76,7 @@ export default function DashboardLayout({
   const menuItems = [
     { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/users", icon: Users, label: "Users" },
+    { href: "/profile", icon: User, label: "Profile" },
     { href: "/dashboard/settings", icon: Settings, label: "Settings" },
   ];
 
@@ -302,7 +303,10 @@ export default function DashboardLayout({
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-slate-700/50" />
-              <DropdownMenuItem className="cursor-pointer text-slate-300 hover:text-white hover:bg-slate-800/50 focus:bg-slate-800/50 focus:text-white">
+              <DropdownMenuItem 
+                onClick={() => router.push("/profile")}
+                className="cursor-pointer text-slate-300 hover:text-white hover:bg-slate-800/50 focus:bg-slate-800/50 focus:text-white"
+              >
                 <User className="mr-2 h-4 w-4" />
                 Profile Settings
               </DropdownMenuItem>
