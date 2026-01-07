@@ -107,7 +107,7 @@ export default function UsersPage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
   const { role: userRole, loading: roleLoading } = useUserRole();
-  
+
   // ✅ State declarations - HANYA SATU KALI
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,7 +135,7 @@ export default function UsersPage() {
       router.push("/dashboard");
       return;
     }
-    
+
     if (!isPending && !roleLoading && userRole === "admin") {
       fetchUsers();
     }
@@ -164,7 +164,9 @@ export default function UsersPage() {
     const nameCheck = validation.name(formData.name);
     const emailCheck = validation.email(formData.email);
     const passwordCheck = validation.password(formData.password, true);
-    const phoneCheck = formData.phone ? validation.phone(formData.phone) : { valid: true };
+    const phoneCheck = formData.phone
+      ? validation.phone(formData.phone)
+      : { valid: true };
     const roleCheck = validation.role(formData.role);
 
     const newErrors: Record<string, string> = {};
@@ -215,7 +217,9 @@ export default function UsersPage() {
     // Client-side validation
     const nameCheck = validation.name(formData.name);
     const emailCheck = validation.email(formData.email);
-    const phoneCheck = formData.phone ? validation.phone(formData.phone) : { valid: true };
+    const phoneCheck = formData.phone
+      ? validation.phone(formData.phone)
+      : { valid: true };
     const roleCheck = validation.role(formData.role);
 
     const newErrors: Record<string, string> = {};
@@ -390,7 +394,8 @@ export default function UsersPage() {
       </div>
 
       {/* Search */}
-      <div className="relative">UsersPage
+      <div className="relative">
+        UsersPage
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         <Input
           placeholder="Search by name, email, or role..."
@@ -491,7 +496,13 @@ export default function UsersPage() {
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <Dialog
+        open={showCreateDialog}
+        onOpenChange={(open) => {
+          setShowCreateDialog(open);
+          if (!open) resetForm();
+        }}
+      >
         <DialogContent className="bg-slate-900/95 backdrop-blur-xl border-slate-700/50 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
@@ -657,9 +668,11 @@ export default function UsersPage() {
                     setFormData({ ...formData, role: value })
                   }
                 >
-                  <SelectTrigger className={`bg-slate-950 border-slate-700 ${
-                    errors.role ? "border-red-500" : ""
-                  }`}>
+                  <SelectTrigger
+                    className={`bg-slate-950 border-slate-700 ${
+                      errors.role ? "border-red-500" : ""
+                    }`}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-700">
@@ -697,7 +710,13 @@ export default function UsersPage() {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+      <Dialog
+        open={showEditDialog}
+        onOpenChange={(open) => {
+          setShowEditDialog(open);
+          if (!open) resetForm();
+        }}
+      >
         <DialogContent className="bg-slate-900/95 backdrop-blur-xl border-slate-700/50 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
@@ -709,7 +728,9 @@ export default function UsersPage() {
             {/* Avatar Upload */}
             <div className="flex items-center gap-4 pb-4 border-b border-slate-700/50">
               <Avatar className="h-20 w-20 border-2 border-slate-700">
-                <AvatarImage src={(imagePreview || selectedUser?.image) || undefined} />
+                <AvatarImage
+                  src={imagePreview || selectedUser?.image || undefined}
+                />
                 <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white text-lg">
                   {formData.name ? formData.name.charAt(0).toUpperCase() : "U"}
                 </AvatarFallback>
@@ -831,9 +852,11 @@ export default function UsersPage() {
                     setFormData({ ...formData, role: value })
                   }
                 >
-                  <SelectTrigger className={`bg-slate-950 border-slate-700 ${
-                    errors.role ? "border-red-500" : ""
-                  }`}>
+                  <SelectTrigger
+                    className={`bg-slate-950 border-slate-700 ${
+                      errors.role ? "border-red-500" : ""
+                    }`}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-900 border-slate-700">
