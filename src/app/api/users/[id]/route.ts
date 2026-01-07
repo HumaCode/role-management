@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import { validateUserUpdate } from "@/lib/validation";
 
 // GET - Fetch single user
 export async function GET(
@@ -37,7 +37,7 @@ export async function PUT(
 ) {
     try {
         const body = await request.json();
-        const { name, email, password, phone, role, image } = body;
+        const { name, email, phone, role, image } = body;
 
         // Check if user exists
         const existingUser = await db
@@ -50,12 +50,27 @@ export async function PUT(
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
+        // Validation
+        const validation = validateUserUpdate({
+            name,
+            email,
+            phone,
+            role,
+        });
+
+        if (!validation.valid) {
+            return NextResponse.json(
+                { error: "Validation failed", errors: validation.errors },
+                { status: 400 }
+            );
+        }
+
         // Check if email is taken by another user
-        if (email && email !== existingUser[0].email) {
+        if (email && email.trim() !== existingUser[0].email) {
             const emailCheck = await db
                 .select()
                 .from(users)
-                .where(eq(users.email, email))
+                .where(eq(users.email, email.trim()))
                 .limit(1);
 
             if (emailCheck.length > 0) {
@@ -68,11 +83,11 @@ export async function PUT(
 
         // Prepare update data
         const updateData: any = {
-            name: name || existingUser[0].name,
-            email: email || existingUser[0].email,
-            phone: phone !== undefined ? phone : existingUser[0].phone,
-            role: role || existingUser[0].role,
-            image: image !== undefined ? image : existingUser[0].image,
+            name: name.trim(),
+            email: email.trim(),
+            phone: phone?.trim() || null,
+            role: role,
+            image: image?.trim() || null,
             updatedAt: new Date(),
         };
 

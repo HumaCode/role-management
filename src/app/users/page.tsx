@@ -51,8 +51,12 @@ import {
   User,
   Lock,
   ShieldAlert,
+  Upload,
+  Loader2,
+  X as XIcon,
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
+import { validation } from "@/lib/validation";
 
 // Custom hook to get fresh role from database
 function useUserRole() {
@@ -92,7 +96,6 @@ function useUserRole() {
 interface User {
   id: string;
   name: string;
-  username: string;
   email: string;
   phone: string | null;
   role: string;
@@ -104,6 +107,8 @@ export default function UsersPage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
   const { role: userRole, loading: roleLoading } = useUserRole();
+  
+  // ✅ State declarations - HANYA SATU KALI
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -113,13 +118,16 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
     name: "",
-    username: "",
     email: "",
     password: "",
     phone: "",
     role: "user",
+    image: "",
   });
+  const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     // Check if user is admin
@@ -149,8 +157,26 @@ export default function UsersPage() {
   };
 
   const handleCreate = async () => {
-    if (!formData.name || !formData.username || !formData.email || !formData.password) {
-      toast.error("Please fill all required fields");
+    // Clear previous errors
+    setErrors({});
+
+    // Client-side validation
+    const nameCheck = validation.name(formData.name);
+    const emailCheck = validation.email(formData.email);
+    const passwordCheck = validation.password(formData.password, true);
+    const phoneCheck = formData.phone ? validation.phone(formData.phone) : { valid: true };
+    const roleCheck = validation.role(formData.role);
+
+    const newErrors: Record<string, string> = {};
+    if (!nameCheck.valid) newErrors.name = nameCheck.message!;
+    if (!emailCheck.valid) newErrors.email = emailCheck.message!;
+    if (!passwordCheck.valid) newErrors.password = passwordCheck.message!;
+    if (!phoneCheck.valid) newErrors.phone = phoneCheck.message!;
+    if (!roleCheck.valid) newErrors.role = roleCheck.message!;
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fix the validation errors");
       return;
     }
 
@@ -170,6 +196,9 @@ export default function UsersPage() {
         resetForm();
         fetchUsers();
       } else {
+        if (data.errors) {
+          setErrors(data.errors);
+        }
         toast.error(data.error || "Failed to create user");
       }
     } catch (error) {
@@ -180,6 +209,27 @@ export default function UsersPage() {
   };
 
   const handleEdit = async () => {
+    // Clear previous errors
+    setErrors({});
+
+    // Client-side validation
+    const nameCheck = validation.name(formData.name);
+    const emailCheck = validation.email(formData.email);
+    const phoneCheck = formData.phone ? validation.phone(formData.phone) : { valid: true };
+    const roleCheck = validation.role(formData.role);
+
+    const newErrors: Record<string, string> = {};
+    if (!nameCheck.valid) newErrors.name = nameCheck.message!;
+    if (!emailCheck.valid) newErrors.email = emailCheck.message!;
+    if (!phoneCheck.valid) newErrors.phone = phoneCheck.message!;
+    if (!roleCheck.valid) newErrors.role = roleCheck.message!;
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fix the validation errors");
+      return;
+    }
+
     if (!selectedUser) return;
 
     setSubmitting(true);
@@ -198,6 +248,9 @@ export default function UsersPage() {
         resetForm();
         fetchUsers();
       } else {
+        if (data.errors) {
+          setErrors(data.errors);
+        }
         toast.error(data.error || "Failed to update user");
       }
     } catch (error) {
@@ -231,16 +284,61 @@ export default function UsersPage() {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const imageCheck = validation.image(file);
+    if (!imageCheck.valid) {
+      toast.error(imageCheck.message);
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formDataUpload,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFormData({ ...formData, image: data.url });
+        setImagePreview(data.url);
+        toast.success("Image uploaded successfully!");
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to upload image");
+      }
+    } catch (error) {
+      toast.error("An error occurred during upload");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData({ ...formData, image: "" });
+    setImagePreview(null);
+  };
+
   const openEditDialog = (user: User) => {
     setSelectedUser(user);
     setFormData({
       name: user.name,
-      username: user.username,
       email: user.email,
       password: "",
       phone: user.phone || "",
       role: user.role,
+      image: user.image || "",
     });
+    setImagePreview(user.image);
+    setErrors({});
     setShowEditDialog(true);
   };
 
@@ -252,13 +350,15 @@ export default function UsersPage() {
   const resetForm = () => {
     setFormData({
       name: "",
-      username: "",
       email: "",
       password: "",
       phone: "",
       role: "user",
+      image: "",
     });
     setSelectedUser(null);
+    setImagePreview(null);
+    setErrors({});
   };
 
   const getRoleBadge = (role: string) => {
@@ -290,7 +390,7 @@ export default function UsersPage() {
       </div>
 
       {/* Search */}
-      <div className="relative">
+      <div className="relative">UsersPage
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
         <Input
           placeholder="Search by name, email, or role..."
@@ -306,7 +406,6 @@ export default function UsersPage() {
           <TableHeader>
             <TableRow className="border-slate-700/50 hover:bg-slate-800/50">
               <TableHead className="text-slate-300">User</TableHead>
-              <TableHead className="text-slate-300">Username</TableHead>
               <TableHead className="text-slate-300">Email</TableHead>
               <TableHead className="text-slate-300">Phone</TableHead>
               <TableHead className="text-slate-300">Role</TableHead>
@@ -318,7 +417,7 @@ export default function UsersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={5} className="text-center py-8">
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                   </div>
@@ -327,7 +426,7 @@ export default function UsersPage() {
             ) : users.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={5}
                   className="text-center py-8 text-slate-400"
                 >
                   No users found
@@ -342,7 +441,7 @@ export default function UsersPage() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 border-2 border-slate-700">
-                        <AvatarImage src={user.image || ""} />
+                        <AvatarImage src={user.image || undefined} />
                         <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
                           {user.name.charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -351,9 +450,6 @@ export default function UsersPage() {
                         {user.name}
                       </span>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-slate-300">
-                    @{user.username}
                   </TableCell>
                   <TableCell className="text-slate-300">{user.email}</TableCell>
                   <TableCell className="text-slate-300">
@@ -396,7 +492,7 @@ export default function UsersPage() {
 
       {/* Create Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="bg-slate-900/95 backdrop-blur-xl border-slate-700/50 text-white">
+        <DialogContent className="bg-slate-900/95 backdrop-blur-xl border-slate-700/50 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New User</DialogTitle>
             <DialogDescription className="text-slate-400">
@@ -404,108 +500,178 @@ export default function UsersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Full Name <span className="text-red-400">*</span>
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="name"
-                  placeholder="John Doe"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
+            {/* Avatar Upload */}
+            <div className="flex items-center gap-4 pb-4 border-b border-slate-700/50">
+              <Avatar className="h-20 w-20 border-2 border-slate-700">
+                <AvatarImage src={imagePreview || undefined} />
+                <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white text-lg">
+                  {formData.name ? formData.name.charAt(0).toUpperCase() : "U"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <label
+                  htmlFor="create-avatar-upload"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer transition-colors"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      <span>Upload Photo</span>
+                    </>
+                  )}
+                </label>
+                <input
+                  id="create-avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploading}
+                  className="hidden"
                 />
+                <p className="text-xs text-slate-500 mt-2">
+                  JPG, PNG, GIF or WebP. Max 5MB.
+                </p>
+                {imagePreview && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveImage}
+                    className="text-red-400 hover:text-red-300 mt-1"
+                  >
+                    <XIcon className="mr-1 h-3 w-3" />
+                    Remove
+                  </Button>
+                )}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="username">
-                Username <span className="text-red-400">*</span>
-              </Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="username"
-                  placeholder="johndoe"
-                  value={formData.username}
-                  onChange={(e) =>
-                    setFormData({ ...formData, username: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
-                />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Name */}
+              <div className="space-y-2">
+                <Label htmlFor="name">
+                  Full Name <span className="text-red-400">*</span>
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="name"
+                    placeholder="John Doe"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    className={`pl-10 bg-slate-950 border-slate-700 ${
+                      errors.name ? "border-red-500" : ""
+                    }`}
+                  />
+                </div>
+                {errors.name && (
+                  <p className="text-xs text-red-400">{errors.name}</p>
+                )}
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">
-                Email <span className="text-red-400">*</span>
-              </Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@example.com"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
-                />
+
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">
+                  Email <span className="text-red-400">*</span>
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="john@example.com"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    className={`pl-10 bg-slate-950 border-slate-700 ${
+                      errors.email ? "border-red-500" : ""
+                    }`}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="text-xs text-red-400">{errors.email}</p>
+                )}
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">
-                Password <span className="text-red-400">*</span>
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Min. 8 characters"
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
-                />
+
+              {/* Password */}
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  Password <span className="text-red-400">*</span>
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Min. 8 characters"
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    className={`pl-10 bg-slate-950 border-slate-700 ${
+                      errors.password ? "border-red-500" : ""
+                    }`}
+                  />
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-red-400">{errors.password}</p>
+                )}
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="phone"
-                  placeholder="+62 812 3456 7890"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
-                />
+
+              {/* Phone */}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="phone"
+                    placeholder="+62 812 3456 7890"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    className={`pl-10 bg-slate-950 border-slate-700 ${
+                      errors.phone ? "border-red-500" : ""
+                    }`}
+                  />
+                </div>
+                {errors.phone && (
+                  <p className="text-xs text-red-400">{errors.phone}</p>
+                )}
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, role: value })
-                }
-              >
-                <SelectTrigger className="bg-slate-950 border-slate-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-700">
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
-                </SelectContent>
-              </Select>
+
+              {/* Role */}
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, role: value })
+                  }
+                >
+                  <SelectTrigger className={`bg-slate-950 border-slate-700 ${
+                    errors.role ? "border-red-500" : ""
+                  }`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700">
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="guest">Guest</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.role && (
+                  <p className="text-xs text-red-400">{errors.role}</p>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -532,7 +698,7 @@ export default function UsersPage() {
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="bg-slate-900/95 backdrop-blur-xl border-slate-700/50 text-white">
+        <DialogContent className="bg-slate-900/95 backdrop-blur-xl border-slate-700/50 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription className="text-slate-400">
@@ -540,80 +706,146 @@ export default function UsersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Full Name</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="edit-name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
+            {/* Avatar Upload */}
+            <div className="flex items-center gap-4 pb-4 border-b border-slate-700/50">
+              <Avatar className="h-20 w-20 border-2 border-slate-700">
+                <AvatarImage src={(imagePreview || selectedUser?.image) || undefined} />
+                <AvatarFallback className="bg-gradient-to-br from-blue-600 to-purple-600 text-white text-lg">
+                  {formData.name ? formData.name.charAt(0).toUpperCase() : "U"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <label
+                  htmlFor="edit-avatar-upload"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer transition-colors"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      <span>Change Photo</span>
+                    </>
+                  )}
+                </label>
+                <input
+                  id="edit-avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploading}
+                  className="hidden"
                 />
+                <p className="text-xs text-slate-500 mt-2">
+                  JPG, PNG, GIF or WebP. Max 5MB.
+                </p>
+                {imagePreview && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveImage}
+                    className="text-red-400 hover:text-red-300 mt-1"
+                  >
+                    <XIcon className="mr-1 h-3 w-3" />
+                    Remove
+                  </Button>
+                )}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-username">Username</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="edit-username"
-                  value={formData.username}
-                  onChange={(e) =>
-                    setFormData({ ...formData, username: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
-                />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Name */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="edit-name"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    className={`pl-10 bg-slate-950 border-slate-700 ${
+                      errors.name ? "border-red-500" : ""
+                    }`}
+                  />
+                </div>
+                {errors.name && (
+                  <p className="text-xs text-red-400">{errors.name}</p>
+                )}
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="edit-email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
-                />
+
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    className={`pl-10 bg-slate-950 border-slate-700 ${
+                      errors.email ? "border-red-500" : ""
+                    }`}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="text-xs text-red-400">{errors.email}</p>
+                )}
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-phone">Phone Number</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  id="edit-phone"
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="pl-10 bg-slate-950 border-slate-700"
-                />
+
+              {/* Phone */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Phone Number</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="edit-phone"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    className={`pl-10 bg-slate-950 border-slate-700 ${
+                      errors.phone ? "border-red-500" : ""
+                    }`}
+                  />
+                </div>
+                {errors.phone && (
+                  <p className="text-xs text-red-400">{errors.phone}</p>
+                )}
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-role">Role</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, role: value })
-                }
-              >
-                <SelectTrigger className="bg-slate-950 border-slate-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-700">
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
-                </SelectContent>
-              </Select>
+
+              {/* Role */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-role">Role</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, role: value })
+                  }
+                >
+                  <SelectTrigger className={`bg-slate-950 border-slate-700 ${
+                    errors.role ? "border-red-500" : ""
+                  }`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700">
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="guest">Guest</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.role && (
+                  <p className="text-xs text-red-400">{errors.role}</p>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>

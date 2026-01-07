@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq, like, or } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
+import { validateUserCreate } from "@/lib/validation";
 
 // GET - Fetch all users with optional search
 export async function GET(request: NextRequest) {
@@ -38,12 +39,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { name, email, password, phone, role } = body;
+        const { name, email, password, phone, role, image } = body;
 
         // Validation
-        if (!name || !email || !password) {
+        const validation = validateUserCreate({
+            name,
+            email,
+            password,
+            phone,
+            role,
+        });
+
+        if (!validation.valid) {
             return NextResponse.json(
-                { error: "Name, email, and password are required" },
+                { error: "Validation failed", errors: validation.errors },
                 { status: 400 }
             );
         }
@@ -52,7 +61,7 @@ export async function POST(request: NextRequest) {
         const existingUser = await db
             .select()
             .from(users)
-            .where(eq(users.email, email))
+            .where(eq(users.email, email.trim()))
             .limit(1);
 
         if (existingUser.length > 0) {
@@ -62,20 +71,17 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Generate unique ID
-        const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Generate UUID
+        const userId = uuidv4();
 
         // Create user
         await db.insert(users).values({
             id: userId,
-            name,
-            email,
+            name: name.trim(),
+            email: email.trim(),
             emailVerified: false,
-            phone: phone || null,
-            image: null,
+            phone: phone?.trim() || null,
+            image: image?.trim() || null,
             role: role || "user",
         });
 
