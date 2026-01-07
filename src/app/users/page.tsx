@@ -54,6 +54,41 @@ import {
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 
+// Custom hook to get fresh role from database
+function useUserRole() {
+  const { data: session } = useSession();
+  const [role, setRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchRole() {
+      if (!session?.user?.id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/profile");
+        if (response.ok) {
+          const data = await response.json();
+          setRole(data.role);
+        } else {
+          setRole(session.user.role || "user");
+        }
+      } catch (error) {
+        console.error("Error fetching role:", error);
+        setRole(session.user.role || "user");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchRole();
+  }, [session?.user?.id, session?.user?.role]);
+
+  return { role, loading };
+}
+
 interface User {
   id: string;
   name: string;
@@ -68,6 +103,7 @@ interface User {
 export default function UsersPage() {
   const router = useRouter();
   const { data: session, isPending } = useSession();
+  const { role: userRole, loading: roleLoading } = useUserRole();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -87,15 +123,15 @@ export default function UsersPage() {
 
   useEffect(() => {
     // Check if user is admin
-    if (!isPending && session?.user?.role !== "admin") {
+    if (!isPending && !roleLoading && userRole !== "admin") {
       router.push("/dashboard");
       return;
     }
     
-    if (!isPending && session) {
+    if (!isPending && !roleLoading && userRole === "admin") {
       fetchUsers();
     }
-  }, [search, session, isPending, router]);
+  }, [search, session, isPending, roleLoading, userRole, router]);
 
   const fetchUsers = async () => {
     try {

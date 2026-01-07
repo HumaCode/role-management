@@ -37,6 +37,42 @@ import {
 } from "lucide-react";
 import { SIDEBAR_MENU_LIST, type SidebarMenuKey } from "@/config/menu";
 
+// Custom hook to get fresh role from database
+function useUserRole() {
+  const { data: session } = useSession();
+  const [role, setRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchRole() {
+      if (!session?.user?.id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/profile");
+        if (response.ok) {
+          const data = await response.json();
+          setRole(data.role);
+        } else {
+          // Fallback to session role
+          setRole(session.user.role || "user");
+        }
+      } catch (error) {
+        console.error("Error fetching role:", error);
+        setRole(session.user.role || "user");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchRole();
+  }, [session?.user?.id, session?.user?.role]);
+
+  return { role, loading };
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -45,28 +81,52 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { data: session, isPending } = useSession();
+  const { role: userRole, loading: roleLoading } = useUserRole();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
-  // Get menu items based on user role
+  // Get menu items based on user role from database
   const menuItems = useMemo(() => {
-    if (!session?.user?.role) return [];
-    const role = session.user.role as SidebarMenuKey;
-    return SIDEBAR_MENU_LIST[role] || SIDEBAR_MENU_LIST.user;
-  }, [session?.user?.role]);
+    if (!userRole) {
+      console.log("No role found");
+      return [
+        { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard }
+      ];
+    }
+    console.log("Current user role from DB:", userRole);
+    const menu = SIDEBAR_MENU_LIST[userRole as SidebarMenuKey];
+    console.log("Menu items for role:", menu);
+    
+    if (!menu) {
+      console.warn(`No menu found for role: ${userRole}, using default user menu`);
+      return SIDEBAR_MENU_LIST.user;
+    }
+    
+    return menu;
+  }, [userRole]);
 
   useEffect(() => {
     if (!isPending && !session) {
       router.push("/login");
     }
-  }, [session, isPending, router]);
+    
+    // Debug log
+    if (session && userRole) {
+      console.log("Session data:", {
+        user: session.user,
+        sessionRole: session.user?.role,
+        dbRole: userRole,
+        menuItems: menuItems.length
+      });
+    }
+  }, [session, isPending, router, menuItems, userRole]);
 
   const handleLogout = async () => {
     await signOut();
     router.push("/login");
   };
 
-  if (isPending) {
+  if (isPending || roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <div className="relative">
@@ -271,7 +331,7 @@ export default function DashboardLayout({
                     variant="secondary"
                     className="text-xs bg-blue-500/20 text-blue-400 border-0 hover:bg-blue-500/30"
                   >
-                    {session.user?.role || "user"}
+                    {userRole || session?.user?.role || "user"}
                   </Badge>
                 </div>
                 <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-white transition-colors hidden md:block" />
@@ -300,7 +360,7 @@ export default function DashboardLayout({
                       variant="secondary"
                       className="text-xs mt-1 bg-blue-500/20 text-blue-400 border-0"
                     >
-                      {session.user?.role || "user"}
+                      {userRole || session?.user?.role || "user"}
                     </Badge>
                   </div>
                 </div>
